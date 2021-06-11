@@ -1,0 +1,656 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<title>sculpt-dragging</title>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+	</head>
+	<body>
+		<style>
+			html, body {margin: 0; padding:0; background-color: #000; color: #fff; overflow:hidden;}
+		</style>
+		<script src="./three.js_master/examples/js/vr/HelioWebXRPolyfill.js"></script>
+		<script src="./three.js_master/examples/js/vr/WebVR.js"></script>
+		<script src="./three.js_master/build/three.module.js"></script>
+		
+
+		<script type="module">
+			import * as THREE from './three.js_master/build/three.module.js';
+
+
+			var container;
+			var camera, scene, renderer;
+			var controller1, controller2;
+
+
+			var line;
+			var shapes = {};
+
+			var up = new THREE.Vector3( 0, 1, 0 );
+
+			var vector1 = new THREE.Vector3();
+			var vector2 = new THREE.Vector3();
+			var vector3 = new THREE.Vector3();
+			var vector4 = new THREE.Vector3();
+
+			var group;
+			var group_mesh = new THREE.Group();
+
+			var raycaster, intersected = [];
+			var tempMatrix = new THREE.Matrix4();
+
+			scene = new THREE.Scene();
+
+			var geometry = new THREE.SphereGeometry(1000, 400, 300);
+			var material = new THREE.MeshPhongMaterial();
+			var tatooineMesh = new THREE.Mesh(geometry, material);
+
+
+
+			init();
+			initGeometry();
+			animate();
+
+
+			function init() {
+
+				container = document.createElement( 'div' );
+				document.body.appendChild( container );
+				group = new THREE.Group();
+
+				
+
+				scene.add( group );
+
+				camera = new THREE.PerspectiveCamera( 75, window.innerWidth / window.innerHeight, 0.01, 10000000000 );
+
+				var skyGeometry = new THREE.SphereGeometry(10000, 25, 25); 
+				var loader  = new THREE.TextureLoader(),
+	        	texture = loader.load( "textures/universe.jpg" );
+	        	var material = new THREE.MeshPhongMaterial({ map: texture,});
+	        	var sky = new THREE.Mesh(skyGeometry, material);
+	   		 	sky.material.side = THREE.BackSide;
+	    		scene.add(sky);
+
+				var geometry = new THREE.PlaneBufferGeometry( 50, 50 );
+				var material = new THREE.MeshStandardMaterial( {
+					color: 0xfffff0,
+					roughness: 1.0,
+					metalness: 0.0
+				} );
+				var loader  = new THREE.TextureLoader(),
+	        	texture = loader.load( "textures/moon.jpg" );
+	        	texture.wrapS = THREE.RepeatWrapping;
+				texture.wrapT = THREE.RepeatWrapping;
+				texture.repeat.set( 20, 20 );
+	        	var material = new THREE.MeshPhongMaterial({ map: texture,});
+				var floor = new THREE.Mesh( geometry, material );
+				floor.rotation.x = - Math.PI / 2;
+				scene.add( floor );
+
+
+				tatooineMesh.position.set(600, 1000, -1600);
+				tatooineMesh.material.map = THREE.ImageUtils.loadTexture('textures/tatooine.png');
+				tatooineMesh.material.bumpMap = THREE.ImageUtils.loadTexture('textures/tatooine_bump.png');
+				tatooineMesh.material.bumpScale = 2;
+				tatooineMesh.material.specularMap = THREE.ImageUtils.loadTexture('textures/tatooine_specular.png');
+				tatooineMesh.material.specular = new THREE.Color('grey');
+				tatooineMesh.receiveShadow = true;
+				tatooineMesh.castShadow = true;
+				
+				scene.add( tatooineMesh );
+
+
+				//buttons up down left right
+
+
+				var loader  = new THREE.TextureLoader(),
+	        	texture_up = loader.load( "textures/up.png" );
+	        	texture_up.wrapS = THREE.RepeatWrapping;
+				texture_up.wrapT = THREE.RepeatWrapping;
+				texture_up.repeat.set( 1, 1 );
+
+				var loader  = new THREE.TextureLoader(),
+	        	texture_down = loader.load( "textures/down.png" );
+	        	texture_down.wrapS = THREE.RepeatWrapping;
+				texture_down.wrapT = THREE.RepeatWrapping;
+				texture_down.repeat.set( 1, 1 );
+
+				var loader  = new THREE.TextureLoader(),
+	        	texture_left = loader.load( "textures/left.png" );
+	        	texture_left.wrapS = THREE.RepeatWrapping;
+				texture_left.wrapT = THREE.RepeatWrapping;
+				texture_left.repeat.set( 1, 1 );
+
+				var loader  = new THREE.TextureLoader(),
+	        	texture_right = loader.load( "textures/right.png" );
+	        	texture_right.wrapS = THREE.RepeatWrapping;
+				texture_right.wrapT = THREE.RepeatWrapping;
+				texture_right.repeat.set( 1, 1 );
+
+				var button_geometry = new THREE.PlaneBufferGeometry( 0.3, 0.3 );
+				var button_material_up = new THREE.MeshStandardMaterial({
+					color : 0xe8dcff,
+					roughness: 1.0,
+					metalness: 0.5,
+					map: texture_up
+				}); 
+
+				var button_material_down = new THREE.MeshStandardMaterial({
+					color : 0xe8dcff,
+					roughness: 1.0,
+					metalness: 0.5,
+					map: texture_down
+				});
+
+				var button_material_left = new THREE.MeshStandardMaterial({
+					color : 0xe8dcff,
+					roughness: 1.0,
+					metalness: 0.5,
+					map: texture_left
+				});
+
+				var button_material_right = new THREE.MeshStandardMaterial({
+					color : 0xe8dcff,
+					roughness: 1.0,
+					metalness: 0.5,
+					map: texture_right
+				});
+
+
+				var button_up = new THREE.Mesh( button_geometry, button_material_up );
+				button_up.position.set( 0, 1, - 0.8 );
+				button_up.userData.id = "1";
+				scene.add(button_up);
+
+				var button_down = new THREE.Mesh( button_geometry, button_material_down );
+				button_down.position.set( 0, 0.4, - 0.8 );
+				button_down.userData.id = "2";
+				scene.add(button_down);
+
+				var button_left = new THREE.Mesh( button_geometry, button_material_left );
+				button_left.position.set( - 0.3, 0.7, - 0.8 );
+				button_left.userData.id = "3";
+				scene.add(button_left);
+
+				var button_right = new THREE.Mesh( button_geometry, button_material_right );
+				button_right.position.set( 0.3, 0.7, - 0.8 );
+				button_right.userData.id = "4";
+				scene.add(button_right);
+
+
+				scene.add( new THREE.AmbientLight( 0x404040, 2.1 ) );
+				scene.add( new THREE.HemisphereLight( 0x888877, 0x777788 ) );
+
+				var light = new THREE.DirectionalLight( 0xffffff );
+				light.position.set( 0, 6, 0 );
+				scene.add( light );
+
+
+				
+
+				
+
+
+				group.add(button_up);
+				group.add(button_down);
+				group.add(button_left);
+				group.add(button_right);
+
+				
+
+				renderer = new THREE.WebGLRenderer( { antialias: true } );
+				renderer.setPixelRatio( window.devicePixelRatio );
+				renderer.setSize( window.innerWidth, window.innerHeight );
+				renderer.gammaInput = true;
+				renderer.gammaOutput = true;
+				renderer.vr.enabled = true;
+				container.appendChild( renderer.domElement );
+
+				document.body.appendChild( WEBVR.createButton( renderer ) );
+
+
+				//CONTROLLERS
+
+				//controller1 kanei sculp
+				//controller2 kanei move-rotate
+
+				function onSelectStart1() {
+
+					this.userData.isSelecting = true;
+
+				}
+
+
+				function onSelectEnd1() {
+
+					this.userData.isSelecting = false;
+
+				}
+
+				function onSelectStart2( event ) {
+
+					var controller = event.target;
+
+					var intersections = getIntersections( controller );
+
+
+					if ( intersections.length > 0 ) {
+
+
+
+					var intersection = intersections[ 0 ];
+
+					tempMatrix.getInverse( controller.matrixWorld );
+
+					var object = intersection.object;
+
+					if (object.userData.id == "1") {
+						group_mesh.position.z -= 0.1; 
+					}
+
+					if (object.userData.id == "2") {
+						group_mesh.position.z += 0.1; 
+					}
+
+					if (object.userData.id == "3") {
+						group_mesh.rotation.y += 0.2; 
+					}
+
+					if (object.userData.id == "4") {
+						group_mesh.rotation.y -= 0.2; 
+					}
+
+
+					} 
+
+
+
+
+				}
+
+
+				function onSelectEnd2( event ) {
+
+					var controller = event.target;
+
+					if ( controller.userData.selected !== undefined ) {
+
+						var object = controller.userData.selected;
+
+						group.add( object );
+
+						controller.userData.selected = undefined;
+
+					} 
+ 
+				}
+
+				
+
+				controller1 = renderer.vr.getController( 0 );
+				controller1.addEventListener( 'selectstart', onSelectStart1 );
+				controller1.addEventListener( 'selectend', onSelectEnd1 );
+				controller1.userData.points = [ new THREE.Vector3(), new THREE.Vector3() ];
+				controller1.userData.matrices = [ new THREE.Matrix4(), new THREE.Matrix4() ];
+				scene.add( controller1 );
+
+				controller2 = renderer.vr.getController( 1 );
+				controller2.addEventListener( 'selectstart', onSelectStart2 );
+				controller2.addEventListener( 'selectend', onSelectEnd2 );
+				scene.add( controller2 );
+
+				var geometry = new THREE.CylinderBufferGeometry( 0.01, 0.02, 0.08, 5 );
+				geometry.rotateX( - Math.PI / 2 );
+				var material = new THREE.MeshStandardMaterial( { flatShading: true } );
+				var mesh1 = new THREE.Mesh( geometry, material );
+				var mesh2 = new THREE.Mesh( geometry, material );
+
+				var controller_head = new THREE.Mesh( new THREE.IcosahedronBufferGeometry( 0.01, 2 ), new THREE.MeshLambertMaterial( { color: 0xd10000 } ) );
+				controller_head.name = 'controller_head';
+				controller_head.position.z = - 0.05;
+				mesh1.add( controller_head );
+				
+
+				var geometry = new THREE.BufferGeometry().setFromPoints( [ new THREE.Vector3( 0, 0, 0 ), new THREE.Vector3( 0, 0, - 0.05 ) ] );
+
+				var line2 = new THREE.Line( geometry );
+				line2.name = 'line2';
+				line2.scale.z = 5;
+				mesh2.add( line2 ); 
+
+
+
+				
+
+
+				controller1.add( mesh1.clone() );
+				controller2.add( mesh2.clone() );
+
+				raycaster = new THREE.Raycaster();
+
+
+
+
+
+				window.addEventListener( 'resize', onWindowResize, false );
+			}
+
+
+
+			function initGeometry() {
+
+				
+
+				var geometry = new THREE.BufferGeometry();
+
+				var positions = new THREE.BufferAttribute( new Float32Array( 1000000 * 3 ), 3 );
+				positions.dynamic = true;
+				geometry.addAttribute( 'position', positions );
+
+				var normals = new THREE.BufferAttribute( new Float32Array( 1000000 * 3 ), 3 );
+				normals.dynamic = true;
+				geometry.addAttribute( 'normal', normals );
+
+				var colors = new THREE.BufferAttribute( new Float32Array( 1000000 * 3 ), 3 );
+				colors.dynamic = true;
+				geometry.addAttribute( 'color', colors );
+
+				geometry.drawRange.count = 0;
+				geometry.position = controller1.position;
+
+				var material = new THREE.MeshStandardMaterial( {
+					roughness: 0.9,
+					metalness: 0.0,
+					vertexColors: THREE.VertexColors
+				} );
+
+				line = new THREE.Mesh( geometry, material );
+				line.frustumCulled = false;
+				//scene.add( line );
+				group_mesh.add( line );
+				scene.add( group_mesh );
+				scene.updateMatrix();
+		
+				// Shapes
+				shapes[ 'tube' ] = getTubeShapes( 1.0 ); 
+
+			}
+
+			function getTubeShapes( size ) { 
+
+				var PI2 = Math.PI * 2;
+
+				var sides = 10;
+				var array = [];
+				var radius = 0.01 * size;
+
+				for ( var i = 0; i < sides; i ++ ) {
+
+					var angle = ( i / sides ) * PI2;
+					array.push( new THREE.Vector3( Math.sin( angle ) * radius, Math.cos( angle ) * radius, 0 ) );
+
+				}
+
+				return array; 
+			}
+
+			function stroke( controller1, point1, point2, matrix1, matrix2 ) { 
+
+				var color = new THREE.Color( 0xffffff );
+				var size = 2;
+
+				var shapes = getTubeShapes( size );
+
+				var geometry = line.geometry;
+				var attributes = geometry.attributes;
+				var count = geometry.drawRange.count;
+
+				var positions = attributes.position.array;
+				var normals = attributes.normal.array;
+				var colors = attributes.color.array;
+
+				for ( var j = 0, jl = shapes.length; j < jl; j ++ ) {
+
+					var vertex1 = shapes[ j ];
+					var vertex2 = shapes[ ( j + 1 ) % jl ];
+
+					// positions
+
+					vector1.copy( vertex1 );
+					vector1.applyMatrix4( matrix2 );
+					vector1.add( point2 );
+
+					vector2.copy( vertex2 );
+					vector2.applyMatrix4( matrix2 );
+					vector2.add( point2 );
+
+					vector3.copy( vertex2 );
+					vector3.applyMatrix4( matrix1 );
+					vector3.add( point1 );
+
+					vector4.copy( vertex1 );
+					vector4.applyMatrix4( matrix1 );
+					vector4.add( point1 );
+
+					vector1.toArray( positions, ( count + 0 ) * 3 );
+					vector2.toArray( positions, ( count + 1 ) * 3 );
+					vector4.toArray( positions, ( count + 2 ) * 3 );
+
+					vector2.toArray( positions, ( count + 3 ) * 3 );
+					vector3.toArray( positions, ( count + 4 ) * 3 );
+					vector4.toArray( positions, ( count + 5 ) * 3 );
+
+					// normals
+
+					vector1.copy( vertex1 );
+					vector1.applyMatrix4( matrix2 );
+					vector1.normalize();
+
+					vector2.copy( vertex2 );
+					vector2.applyMatrix4( matrix2 );
+					vector2.normalize();
+
+					vector3.copy( vertex2 );
+					vector3.applyMatrix4( matrix1 );
+					vector3.normalize();
+
+					vector4.copy( vertex1 );
+					vector4.applyMatrix4( matrix1 );
+					vector4.normalize();
+
+					vector1.toArray( normals, ( count + 0 ) * 3 );
+					vector2.toArray( normals, ( count + 1 ) * 3 );
+					vector4.toArray( normals, ( count + 2 ) * 3 );
+
+					vector2.toArray( normals, ( count + 3 ) * 3 );
+					vector3.toArray( normals, ( count + 4 ) * 3 );
+					vector4.toArray( normals, ( count + 5 ) * 3 );
+
+					// colors
+
+					color.toArray( colors, ( count + 0 ) * 3 );
+					color.toArray( colors, ( count + 1 ) * 3 );
+					color.toArray( colors, ( count + 2 ) * 3 );
+
+					color.toArray( colors, ( count + 3 ) * 3 );
+					color.toArray( colors, ( count + 4 ) * 3 );
+					color.toArray( colors, ( count + 5 ) * 3 );
+
+					count += 6;
+
+				}
+
+				geometry.drawRange.count = count;
+			}
+
+			function updateGeometry( start, end ) { 
+
+				if ( start === end ) return;
+
+				var offset = start * 3;
+				var count = ( end - start ) * 3;
+
+				var geometry = line.geometry;
+				var attributes = geometry.attributes;
+
+				attributes.position.updateRange.offset = offset;
+				attributes.position.updateRange.count = count;
+				attributes.position.needsUpdate = true;
+
+				attributes.normal.updateRange.offset = offset;
+				attributes.normal.updateRange.count = count;
+				attributes.normal.needsUpdate = true;
+
+				attributes.color.updateRange.offset = offset;
+				attributes.color.updateRange.count = count;
+				attributes.color.needsUpdate = true;
+
+
+			}
+
+			function onWindowResize() {
+
+				camera.aspect = window.innerWidth / window.innerHeight;
+				camera.updateProjectionMatrix();
+
+				renderer.setSize( window.innerWidth, window.innerHeight );
+
+			}
+
+
+			function getIntersections( controller ) {
+
+				tempMatrix.identity().extractRotation( controller.matrixWorld );
+
+				raycaster.ray.origin.setFromMatrixPosition( controller.matrixWorld );
+				raycaster.ray.direction.set( 0, 0, - 1 ).applyMatrix4( tempMatrix );
+
+				return raycaster.intersectObjects( group.children );
+
+
+			}
+
+
+
+			function handleController1 ( controller ) {
+
+
+
+				var controller_head = controller.getObjectByName( 'controller_head' );
+
+				if ( controller_head ) {
+
+					var matrix = controller_head.matrixWorld;
+
+					var point1 = controller.userData.points[ 0 ];
+					var point2 = controller.userData.points[ 1 ];
+
+					var matrix1 = controller.userData.matrices[ 0 ];
+					var matrix2 = controller.userData.matrices[ 1 ];
+
+					point1.setFromMatrixPosition( matrix );
+					matrix1.lookAt( point2, point1, up );
+
+					if ( controller.userData.isSelecting === true ) {
+
+						stroke( controller, point1, point2, matrix1, matrix2 );
+
+
+
+					}
+
+
+					point2.copy( point1 );
+					matrix2.copy( matrix1 );
+
+
+
+				}
+
+			}
+
+			function intersectObjects ( controller ) {
+
+				if ( controller.userData.selected !== undefined ) return;
+
+				var line2 = controller.getObjectByName( 'line2' );
+				var intersections = getIntersections( controller );
+
+				if ( intersections.length > 0 ) {
+
+					var intersection = intersections[ 0 ];
+
+					var object = intersection.object;
+
+					//object.material.emissive.r = 1;
+					intersected.push( object );
+					console.log( object );
+
+					line2.scale.z = intersection.distance;
+
+				} else {
+
+					line2.scale.z = 5;
+
+				}
+
+
+			}
+
+			function cleanIntersected() {
+
+				while ( intersected.length ) {
+
+					var object = intersected.pop();
+					//object.material.emissive.r = 0;
+
+				}
+
+			}
+
+
+		
+
+			
+
+
+
+			function animate() {
+
+				renderer.setAnimationLoop( render );
+
+			}
+
+
+			function render() {
+
+				tatooineMesh.rotation.y += 0.0005;
+
+				cleanIntersected();
+
+				var count = line.geometry.drawRange.count;
+
+
+				handleController1( controller1 );
+				intersectObjects( controller2 );
+
+				updateGeometry( count, line.geometry.drawRange.count );
+
+
+
+				renderer.render( scene, camera );
+
+			}
+
+
+
+
+
+
+
+
+
+		</script>
+	</body>
+</html>
